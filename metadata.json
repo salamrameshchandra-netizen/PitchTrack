@@ -1,0 +1,6 @@
+{
+  "name": "PitchTrack - Cricket Bowling & Pitch Map Analytics",
+  "description": "Interactive cricket ball pitching visualizer with pitch zones (Short, Short of Good Length, Good Length, Full, Overpitch, Yorker), bowler management, over recording, local database storage, date range analytics dashboard, and PDF export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
