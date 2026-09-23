@@ -69,6 +69,34 @@ export type BowlingStyle =
   | 'Left-arm Orthodox'
   | 'Left-arm Chinaman';
 
+export type BowlingSide = 'over_the_wicket' | 'around_the_wicket';
+
+export const BOWLING_SIDE_CONFIG: Record<
+  BowlingSide,
+  {
+    id: BowlingSide;
+    name: string;
+    shortName: string;
+    code: string;
+    description: string;
+  }
+> = {
+  over_the_wicket: {
+    id: 'over_the_wicket',
+    name: 'Over the Wicket',
+    shortName: 'Over Wkt',
+    code: 'OTW',
+    description: 'Delivered running past non-striker stumps with bowling arm closest to the wicket.',
+  },
+  around_the_wicket: {
+    id: 'around_the_wicket',
+    name: 'Around the Wicket',
+    shortName: 'Around Wkt',
+    code: 'ATW',
+    description: 'Delivered from the opposite side of the non-striker stumps, creating an acute angle into or across the batter.',
+  },
+};
+
 export interface BallDelivery {
   id: string;
   matchId?: string;
@@ -100,6 +128,7 @@ export interface BallDelivery {
   speedKmph?: number;
   variation?: DeliveryVariation;
   batterHand: 'RHB' | 'LHB';
+  bowlingSide?: BowlingSide;
   notes?: string;
   timestamp: string; // ISO string
 }

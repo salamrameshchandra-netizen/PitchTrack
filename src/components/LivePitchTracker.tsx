@@ -11,6 +11,8 @@ import {
   LENGTH_ZONES_CONFIG,
   LINE_ZONES_CONFIG,
   BowlingStyle,
+  BowlingSide,
+  BOWLING_SIDE_CONFIG,
 } from '../types';
 import { CricketPitch } from './CricketPitch';
 import { saveOver, saveBowler, getAllBowlers } from '../lib/db';
@@ -67,6 +69,7 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
 
   // Active Ball Delivery Form State
   const [batterHand, setBatterHand] = useState<'RHB' | 'LHB'>('RHB');
+  const [bowlingSide, setBowlingSide] = useState<BowlingSide>('over_the_wicket');
   const [selectedPitchCoords, setSelectedPitchCoords] = useState<{
     xPercent: number;
     yPercent: number;
@@ -183,6 +186,7 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
       isWicket: false,
       variation,
       batterHand,
+      bowlingSide,
       notes: ballNotes.trim() || undefined,
       timestamp: new Date().toISOString(),
     };
@@ -192,7 +196,8 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
 
     // Reset single ball notes
     setBallNotes('');
-    showToast(`Ball #${newBall.ballNumberInOver} recorded (${LENGTH_ZONES_CONFIG[newBall.lengthZone].shortName})`);
+    const sideName = bowlingSide === 'around_the_wicket' ? 'Around Wkt' : 'Over Wkt';
+    showToast(`Ball #${newBall.ballNumberInOver} recorded (${sideName}, ${LENGTH_ZONES_CONFIG[newBall.lengthZone].shortName})`);
 
     // Check if over is completed (6 balls)
     if (updatedBalls.length >= 6) {
@@ -545,37 +550,71 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
         
         {/* Left Bento Card: Interactive Pitch Map */}
         <div className="lg:col-span-5 bg-slate-900/40 border border-slate-800 rounded-3xl p-5 md:p-6 flex flex-col items-center relative overflow-hidden shadow-xl">
-          <div className="w-full flex items-center justify-between mb-4">
+          <div className="w-full flex flex-wrap items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-2">
               <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
                 <Target className="w-4 h-4 text-indigo-400" />
-                <span>Pitching Zone Heatmap</span>
+                <span>Pitching Zone</span>
               </h2>
             </div>
-            {/* Batter Stance Toggle */}
-            <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 p-1 rounded-xl text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setBatterHand('RHB')}
-                className={`px-3 py-1 rounded-lg font-mono text-xs transition-all ${
-                  batterHand === 'RHB'
-                    ? 'bg-indigo-600 text-white font-bold shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                RHB
-              </button>
-              <button
-                type="button"
-                onClick={() => setBatterHand('LHB')}
-                className={`px-3 py-1 rounded-lg font-mono text-xs transition-all ${
-                  batterHand === 'LHB'
-                    ? 'bg-indigo-600 text-white font-bold shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                LHB
-              </button>
+
+            {/* Bowling Side & Batter Stance Controls */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Bowling Side Toggle */}
+              <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 p-1 rounded-xl text-xs font-semibold" title="Bowling Side / Angle">
+                <button
+                  id="btn-toggle-bowling-side-over"
+                  type="button"
+                  onClick={() => setBowlingSide('over_the_wicket')}
+                  className={`px-2.5 py-1 rounded-lg font-mono text-xs transition-all cursor-pointer ${
+                    bowlingSide === 'over_the_wicket'
+                      ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Over the Wicket (OTW)"
+                >
+                  Over Wkt
+                </button>
+                <button
+                  id="btn-toggle-bowling-side-around"
+                  type="button"
+                  onClick={() => setBowlingSide('around_the_wicket')}
+                  className={`px-2.5 py-1 rounded-lg font-mono text-xs transition-all cursor-pointer ${
+                    bowlingSide === 'around_the_wicket'
+                      ? 'bg-amber-600 text-white font-bold shadow-xs'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Around the Wicket (ATW)"
+                >
+                  Around Wkt
+                </button>
+              </div>
+
+              {/* Batter Stance Toggle */}
+              <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 p-1 rounded-xl text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setBatterHand('RHB')}
+                  className={`px-2.5 py-1 rounded-lg font-mono text-xs transition-all cursor-pointer ${
+                    batterHand === 'RHB'
+                      ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  RHB
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBatterHand('LHB')}
+                  className={`px-2.5 py-1 rounded-lg font-mono text-xs transition-all cursor-pointer ${
+                    batterHand === 'LHB'
+                      ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  LHB
+                </button>
+              </div>
             </div>
           </div>
 
@@ -586,6 +625,8 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
             onPitchClick={handlePitchClick}
             ballsToDisplay={currentBalls}
             batterHand={batterHand}
+            bowlingSide={bowlingSide}
+            onBowlingSideToggle={setBowlingSide}
             showZoneLabels={true}
           />
         </div>
@@ -674,14 +715,49 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
             </div>
           </div>
 
-          {/* Bento Card 2: Delivery Variation & Notes */}
+          {/* Bento Card 2: Bowling Angle, Variation & Notes */}
           <div className="bg-gradient-to-br from-slate-900 to-indigo-950/30 border border-slate-800 rounded-3xl p-5 md:p-6 shadow-xl space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              2. Delivery Variation & Notes
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                2. Bowling Angle, Variation & Notes
+              </h3>
+              <span className="text-[11px] font-mono font-bold text-slate-400">
+                {bowlingSide === 'around_the_wicket' ? 'Around the Wicket' : 'Over the Wicket'}
+              </span>
+            </div>
 
-            {/* Delivery Variation & Notes Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {/* Bowling Angle, Variation & Notes Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Bowling Side (Angle)
+                </label>
+                <div className="grid grid-cols-2 gap-1 p-1 bg-slate-950 border border-slate-800 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setBowlingSide('over_the_wicket')}
+                    className={`py-2 px-1 text-xs font-bold rounded-lg transition-all text-center cursor-pointer ${
+                      bowlingSide === 'over_the_wicket'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Over (OTW)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBowlingSide('around_the_wicket')}
+                    className={`py-2 px-1 text-xs font-bold rounded-lg transition-all text-center cursor-pointer ${
+                      bowlingSide === 'around_the_wicket'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Around (ATW)
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                   Delivery Variation
@@ -733,7 +809,7 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
               >
                 <Plus className="w-5 h-5" />
                 <span>
-                  Record Ball #{currentBalls.length + 1} ({activeBowler?.name} • {LENGTH_ZONES_CONFIG[selectedPitchCoords.lengthZone].shortName})
+                  Record Ball #{currentBalls.length + 1} ({bowlingSide === 'around_the_wicket' ? 'Around Wkt' : 'Over Wkt'} • {LENGTH_ZONES_CONFIG[selectedPitchCoords.lengthZone].shortName})
                 </span>
               </button>
             </div>
@@ -757,22 +833,28 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
               </p>
             </div>
 
-            {/* Over Pitching Length Summary Bento Grid */}
-            <div className="bg-slate-950 rounded-2xl p-4 grid grid-cols-3 gap-2 text-center border border-slate-800">
+            {/* Over Pitching Length & Bowling Angle Summary Bento Grid */}
+            <div className="bg-slate-950 rounded-2xl p-4 grid grid-cols-4 gap-2 text-center border border-slate-800">
               <div>
-                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Deliveries</div>
+                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Balls</div>
                 <div className="text-xl font-mono font-bold text-white">{currentBalls.length}</div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Good Length</div>
+                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Good Lgth</div>
                 <div className="text-xl font-mono font-bold text-emerald-400">
                   {currentBalls.filter((b) => b.lengthZone === 'good_length').length}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Full / Yorker</div>
+                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Full/York</div>
                 <div className="text-xl font-mono font-bold text-indigo-400">
                   {currentBalls.filter((b) => b.lengthZone === 'yorker' || b.lengthZone === 'over_pitch' || b.lengthZone === 'full_length').length}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Angle</div>
+                <div className="text-xs font-mono font-bold text-amber-400 mt-1">
+                  {currentBalls.filter((b) => b.bowlingSide === 'around_the_wicket').length} ATW / {currentBalls.filter((b) => b.bowlingSide !== 'around_the_wicket').length} OTW
                 </div>
               </div>
             </div>

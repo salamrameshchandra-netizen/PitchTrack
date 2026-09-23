@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { LengthZone, LineZone, LENGTH_ZONES_CONFIG, BallDelivery, BallOutcome } from '../types';
-import { Target, Info, Crosshair, Sparkles } from 'lucide-react';
+import { LengthZone, LineZone, LENGTH_ZONES_CONFIG, BallDelivery, BallOutcome, BowlingSide, BOWLING_SIDE_CONFIG } from '../types';
+import { Target, Info, Crosshair, Sparkles, CornerDownRight } from 'lucide-react';
 
 interface CricketPitchProps {
   interactive?: boolean;
@@ -16,6 +16,8 @@ interface CricketPitchProps {
   ballsToDisplay?: BallDelivery[];
   highlightBallId?: string;
   batterHand?: 'RHB' | 'LHB';
+  bowlingSide?: BowlingSide;
+  onBowlingSideToggle?: (side: BowlingSide) => void;
   showZoneLabels?: boolean;
   showHeatmap?: boolean;
   viewPerspective?: 'bowler' | 'batsman';
@@ -28,6 +30,8 @@ export const CricketPitch: React.FC<CricketPitchProps> = ({
   ballsToDisplay = [],
   highlightBallId,
   batterHand = 'RHB',
+  bowlingSide = 'over_the_wicket',
+  onBowlingSideToggle,
   showZoneLabels = true,
   showHeatmap = false,
   viewPerspective = 'bowler',
@@ -146,20 +150,56 @@ export const CricketPitch: React.FC<CricketPitchProps> = ({
 
   return (
     <div className="flex flex-col items-center select-none w-full">
-      {/* Pitch Header / Batter Info */}
+      {/* Pitch Header / Batter & Bowling Side Info */}
       <div className="w-full max-w-[440px] flex items-center justify-between px-3 py-2 mb-2 text-xs text-slate-300 bg-slate-950 border border-slate-800 rounded-xl shadow-inner">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Batting End</span>
+          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Batting</span>
           <span className="px-2 py-0.5 rounded-md bg-indigo-950/80 text-indigo-400 border border-indigo-500/30 font-mono font-bold text-[11px]">
-            {batterHand} ({batterHand === 'RHB' ? 'Right-Handed' : 'Left-Handed'})
+            {batterHand} ({batterHand === 'RHB' ? 'Right' : 'Left'})
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
-          <span>{batterHand === 'RHB' ? 'OFF' : 'LEG'}</span>
-          <span className="text-slate-600">|</span>
-          <span className="text-indigo-400 font-bold">STUMP</span>
-          <span className="text-slate-600">|</span>
-          <span>{batterHand === 'RHB' ? 'LEG' : 'OFF'}</span>
+
+        {/* Bowling Side indicator / quick switch */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold hidden sm:inline">Bowling:</span>
+          {onBowlingSideToggle ? (
+            <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-0.5 rounded-lg text-[10px]">
+              <button
+                type="button"
+                onClick={() => onBowlingSideToggle('over_the_wicket')}
+                className={`px-2 py-0.5 rounded font-mono font-bold transition-all cursor-pointer ${
+                  bowlingSide === 'over_the_wicket'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Over the Wicket"
+              >
+                Over (OTW)
+              </button>
+              <button
+                type="button"
+                onClick={() => onBowlingSideToggle('around_the_wicket')}
+                className={`px-2 py-0.5 rounded font-mono font-bold transition-all cursor-pointer ${
+                  bowlingSide === 'around_the_wicket'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Around the Wicket"
+              >
+                Around (ATW)
+              </button>
+            </div>
+          ) : (
+            <span
+              className={`px-2 py-0.5 rounded-md font-mono font-bold text-[10px] border ${
+                bowlingSide === 'around_the_wicket'
+                  ? 'bg-amber-950/60 text-amber-300 border-amber-500/40'
+                  : 'bg-indigo-950/60 text-indigo-300 border-indigo-500/40'
+              }`}
+            >
+              {bowlingSide === 'around_the_wicket' ? 'Around Wkt (ATW)' : 'Over Wkt (OTW)'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -330,18 +370,90 @@ export const CricketPitch: React.FC<CricketPitchProps> = ({
             </div>
           )}
 
-          {/* Bowling Crease (Bottom / Bowler End) */}
-          <div className="absolute bottom-1 left-0 right-0 h-6 pointer-events-none flex flex-col justify-end">
-            <div className="w-full h-[2px] bg-slate-400 shadow-sm" />
-            <div className="text-center text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest bg-slate-950/80 py-0.5 mt-0.5 border-t border-slate-800">
-              Bowler Delivery Crease
+          {/* Dynamic Bowling Angle Trajectory Guideline */}
+          {selectedCoordinates && (
+            <svg className="absolute inset-0 w-full h-full pointer-events-none z-20">
+              <line
+                x1={bowlingSide === 'around_the_wicket' ? '28%' : '72%'}
+                y1="94%"
+                x2={`${selectedCoordinates.xPercent}%`}
+                y2={`${selectedCoordinates.yPercent}%`}
+                stroke={bowlingSide === 'around_the_wicket' ? '#f59e0b' : '#818cf8'}
+                strokeWidth="1.5"
+                strokeDasharray="4 3"
+                strokeOpacity="0.8"
+              />
+              <circle
+                cx={bowlingSide === 'around_the_wicket' ? '28%' : '72%'}
+                cy="94%"
+                r="3.5"
+                fill={bowlingSide === 'around_the_wicket' ? '#f59e0b' : '#6366f1'}
+                stroke="#ffffff"
+                strokeWidth="1"
+              />
+            </svg>
+          )}
+
+          {/* Bowling Crease & Release End (Bottom / Bowler End) */}
+          <div className="absolute bottom-0 left-0 right-0 h-10 pointer-events-auto flex flex-col justify-end bg-gradient-to-t from-slate-950/95 via-slate-950/70 to-transparent">
+            {/* Bowling Crease Line */}
+            <div className="relative w-full h-[2px] bg-slate-400 shadow-sm">
+              {/* Non-striker Stumps Visual (3 wickets in middle) */}
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center justify-center gap-1 z-20 pointer-events-none" title="Non-striker Stumps">
+                <div className="w-1 h-3 bg-amber-200 border border-amber-900 rounded-t shadow-xs" />
+                <div className="w-1 h-3 bg-amber-200 border border-amber-900 rounded-t shadow-xs" />
+                <div className="w-1 h-3 bg-amber-200 border border-amber-900 rounded-t shadow-xs" />
+              </div>
+            </div>
+
+            {/* Bowling Side Switcher / Run-up indicators at Bowler Stumps */}
+            <div className="flex items-center justify-between px-1.5 py-1 z-20">
+              {/* Around the Wicket side */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onBowlingSideToggle?.('around_the_wicket');
+                }}
+                className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold transition-all flex items-center gap-1 ${
+                  bowlingSide === 'around_the_wicket'
+                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300 shadow-md scale-105'
+                    : 'bg-slate-900/80 text-slate-400 border border-slate-700/60 hover:text-white hover:border-slate-500'
+                } ${interactive && onBowlingSideToggle ? 'cursor-pointer' : 'cursor-default'}`}
+                title="Around the Wicket (ATW)"
+              >
+                <span>ATW</span>
+                {bowlingSide === 'around_the_wicket' && <span className="text-[7px] uppercase font-black">● Active</span>}
+              </button>
+
+              <span className="text-[8px] font-mono text-slate-500 uppercase tracking-wider font-semibold pointer-events-none">
+                Delivery Crease
+              </span>
+
+              {/* Over the Wicket side */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onBowlingSideToggle?.('over_the_wicket');
+                }}
+                className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold transition-all flex items-center gap-1 ${
+                  bowlingSide === 'over_the_wicket'
+                    ? 'bg-indigo-600 text-white ring-2 ring-indigo-400 shadow-md scale-105'
+                    : 'bg-slate-900/80 text-slate-400 border border-slate-700/60 hover:text-white hover:border-slate-500'
+                } ${interactive && onBowlingSideToggle ? 'cursor-pointer' : 'cursor-default'}`}
+                title="Over the Wicket (OTW)"
+              >
+                {bowlingSide === 'over_the_wicket' && <span className="text-[7px] uppercase font-black">● Active</span>}
+                <span>OTW</span>
+              </button>
             </div>
           </div>
         </div>
 
         {/* Interactive Helper Overlay Prompt */}
         {interactive && !selectedCoordinates && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-950/90 backdrop-blur-md text-white px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-2 shadow-2xl border border-indigo-500/40 pointer-events-none animate-pulse">
+          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-slate-950/90 backdrop-blur-md text-white px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-2 shadow-2xl border border-indigo-500/40 pointer-events-none animate-pulse">
             <Target className="w-3.5 h-3.5 text-indigo-400" />
             <span className="font-medium text-slate-200">Click on the pitch to place ball</span>
           </div>
@@ -354,8 +466,17 @@ export const CricketPitch: React.FC<CricketPitchProps> = ({
           <div>
             <div className="font-bold flex items-center gap-1.5">
               <span className="text-white font-semibold">Ball #{hoveredBall.ballNumberInOver} ({hoveredBall.bowlerName})</span>
+              <span
+                className={`px-1.5 py-0.5 rounded text-[10px] font-mono border ${
+                  hoveredBall.bowlingSide === 'around_the_wicket'
+                    ? 'bg-amber-950/80 text-amber-300 border-amber-500/30'
+                    : 'bg-indigo-950/80 text-indigo-300 border-indigo-500/30'
+                }`}
+              >
+                {hoveredBall.bowlingSide === 'around_the_wicket' ? 'Around Wkt (ATW)' : 'Over Wkt (OTW)'}
+              </span>
               {hoveredBall.variation && hoveredBall.variation !== 'Standard' && (
-                <span className="px-1.5 py-0.5 bg-indigo-950/80 text-indigo-400 border border-indigo-500/30 rounded text-[10px] font-mono">
+                <span className="px-1.5 py-0.5 bg-slate-800 text-slate-300 border border-slate-700 rounded text-[10px] font-mono">
                   {hoveredBall.variation}
                 </span>
               )}

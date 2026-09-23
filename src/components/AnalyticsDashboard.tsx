@@ -5,6 +5,8 @@ import {
   BallDelivery,
   LengthZone,
   LineZone,
+  BowlingSide,
+  BOWLING_SIDE_CONFIG,
   LENGTH_ZONES_CONFIG,
   LINE_ZONES_CONFIG,
 } from '../types';
@@ -59,6 +61,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [selectedLengthFilter, setSelectedLengthFilter] = useState<LengthZone | 'all'>('all');
+  const [selectedBowlingSideFilter, setSelectedBowlingSideFilter] = useState<BowlingSide | 'all'>('all');
   const [expandedOverId, setExpandedOverId] = useState<string | null>(null);
   const [overToDelete, setOverToDelete] = useState<OverRecord | null>(null);
 
@@ -97,8 +100,11 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     if (selectedLengthFilter !== 'all') {
       balls = balls.filter((b) => b.lengthZone === selectedLengthFilter);
     }
+    if (selectedBowlingSideFilter !== 'all') {
+      balls = balls.filter((b) => (b.bowlingSide || 'over_the_wicket') === selectedBowlingSideFilter);
+    }
     return balls;
-  }, [filteredOvers, selectedLengthFilter]);
+  }, [filteredOvers, selectedLengthFilter, selectedBowlingSideFilter]);
 
   // Key Performance Indicators (KPIs)
   const stats = useMemo(() => {
@@ -284,6 +290,23 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               <option value="7days">Last 7 Days</option>
               <option value="30days">Last 30 Days</option>
               <option value="custom">Custom Date Range</option>
+            </select>
+          </div>
+
+          {/* Bowling Side Filter */}
+          <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              Bowling Side (Angle)
+            </label>
+            <select
+              id="analytics-bowling-side-filter"
+              value={selectedBowlingSideFilter}
+              onChange={(e) => setSelectedBowlingSideFilter(e.target.value as any)}
+              className="w-full bg-transparent border-none p-0 text-xs font-semibold text-white focus:ring-0"
+            >
+              <option value="all">All Angles (OTW & ATW)</option>
+              <option value="over_the_wicket">Over the Wicket (OTW)</option>
+              <option value="around_the_wicket">Around the Wicket (ATW)</option>
             </select>
           </div>
 
@@ -577,9 +600,20 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                           >
                             <div className="flex items-center justify-between font-bold">
                               <span className="text-white font-mono">Ball #{b.ballNumberInOver}</span>
-                              <span className={b.isWicket ? 'text-rose-400 font-mono' : 'text-indigo-400 font-mono'}>
-                                {b.isWicket ? `Wicket (${b.wicketType})` : `${b.runsScored} Runs`}
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-mono border ${
+                                    b.bowlingSide === 'around_the_wicket'
+                                      ? 'bg-amber-950/80 text-amber-300 border-amber-500/30'
+                                      : 'bg-indigo-950/80 text-indigo-300 border-indigo-500/30'
+                                  }`}
+                                >
+                                  {b.bowlingSide === 'around_the_wicket' ? 'ATW' : 'OTW'}
+                                </span>
+                                <span className={b.isWicket ? 'text-rose-400 font-mono' : 'text-indigo-400 font-mono'}>
+                                  {b.isWicket ? `Wicket (${b.wicketType})` : `${b.runsScored} Runs`}
+                                </span>
+                              </div>
                             </div>
                             <div className="text-[11px] text-slate-400 flex justify-between">
                               <span>Length: <strong className="text-slate-200 font-semibold">{LENGTH_ZONES_CONFIG[b.lengthZone].shortName}</strong> ({b.pitchDistanceMeters}m)</span>
