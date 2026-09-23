@@ -32,6 +32,10 @@ import {
   Sparkles,
   Zap,
   Trash2,
+  Users,
+  ArrowRightLeft,
+  X,
+  Check,
 } from 'lucide-react';
 
 interface LivePitchTrackerProps {
@@ -65,6 +69,7 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
   // Current Over In-Progress Balls
   const [currentBalls, setCurrentBalls] = useState<BallDelivery[]>([]);
   const [overCompleteModalOpen, setOverCompleteModalOpen] = useState(false);
+  const [nextBowlerId, setNextBowlerId] = useState<string>('');
   const [lastSavedOver, setLastSavedOver] = useState<OverRecord | null>(null);
 
   // Active Ball Delivery Form State
@@ -98,6 +103,14 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
   }, [bowlers, selectedBowlerId]);
 
   const activeBowler = bowlers.find((b) => b.id === selectedBowlerId) || bowlers[0];
+
+  // Helper to open End Over popup with preselected next bowler
+  const handleOpenEndOverModal = () => {
+    // In cricket, bowling changes occur at the end of each over from the opposite end
+    const alternateBowler = bowlers.find((b) => b.id !== activeBowler?.id);
+    setNextBowlerId(alternateBowler ? alternateBowler.id : (activeBowler?.id || ''));
+    setOverCompleteModalOpen(true);
+  };
 
   // Helper to show brief toast feedback
   const showToast = (msg: string) => {
@@ -199,8 +212,10 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
     const sideName = bowlingSide === 'around_the_wicket' ? 'Around Wkt' : 'Over Wkt';
     showToast(`Ball #${newBall.ballNumberInOver} recorded (${sideName}, ${LENGTH_ZONES_CONFIG[newBall.lengthZone].shortName})`);
 
-    // Check if over is completed (6 balls)
+    // Check if over is completed (6 balls) - Pop option to End Over and Change Bowler
     if (updatedBalls.length >= 6) {
+      const alternateBowler = bowlers.find((b) => b.id !== activeBowler?.id);
+      setNextBowlerId(alternateBowler ? alternateBowler.id : (activeBowler?.id || ''));
       setOverCompleteModalOpen(true);
     }
   };
@@ -221,10 +236,12 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
     showToast('Current over deliveries cleared');
   };
 
-  // Save Completed Over to Local Database
+  // Save Completed Over to Local Database and Change Bowler
   const handleSaveCompletedOver = async (proceedToNextOver: boolean = true) => {
     if (!activeBowler || currentBalls.length === 0) return;
 
+    // The bowler who bowled this over must be recorded accurately
+    const bowlerWhoBowled = activeBowler;
     const totalRuns = currentBalls.reduce((sum, b) => sum + b.runsScored, 0);
     const totalWickets = currentBalls.filter((b) => b.isWicket).length;
     const totalExtras = currentBalls.filter((b) => !b.isLegal).length;
@@ -237,9 +254,9 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
       matchName,
       matchDate,
       venue,
-      bowlerId: activeBowler.id,
-      bowlerName: activeBowler.name,
-      bowlingStyle: activeBowler.bowlingStyle,
+      bowlerId: bowlerWhoBowled.id,
+      bowlerName: bowlerWhoBowled.name,
+      bowlingStyle: bowlerWhoBowled.bowlingStyle,
       overNumber,
       balls: currentBalls,
       totalRuns,
@@ -249,7 +266,7 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
       isMaiden,
       isComplete: true,
       completedAt: new Date().toISOString(),
-      notes: `Over #${overNumber} by ${activeBowler.name}: ${totalRuns} runs, ${totalWickets} wickets`,
+      notes: `Over #${overNumber} by ${bowlerWhoBowled.name}: ${totalRuns} runs, ${totalWickets} wickets`,
     };
 
     await saveOver(overRecord);
@@ -257,12 +274,24 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
     onOverSaved(overRecord);
     onBowlersUpdated();
 
-    showToast(`Over #${overNumber} saved to Local Database!`);
     setOverCompleteModalOpen(false);
 
     if (proceedToNextOver) {
       setOverNumber((prev) => prev + 1);
       setCurrentBalls([]);
+
+      // Transition to selected next bowler
+      const targetBowlerId = nextBowlerId || bowlerWhoBowled.id;
+      const chosenNextBowler = bowlers.find((b) => b.id === targetBowlerId) || bowlerWhoBowled;
+
+      if (targetBowlerId !== bowlerWhoBowled.id) {
+        setSelectedBowlerId(targetBowlerId);
+        showToast(`Over #${overNumber} finished! Next Over #${overNumber + 1}: Bowler changed to ${chosenNextBowler.name}`);
+      } else {
+        showToast(`Over #${overNumber} finished! Next Over #${overNumber + 1}: Continuing with ${bowlerWhoBowled.name}`);
+      }
+    } else {
+      showToast(`Over #${overNumber} saved to Local Database!`);
     }
   };
 
@@ -290,7 +319,14 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
 
     await saveBowler(newBowler);
     onBowlersUpdated();
-    setSelectedBowlerId(newBowler.id);
+
+    // If Over Complete pop is open, set newly added bowler as the next bowler
+    if (overCompleteModalOpen) {
+      setNextBowlerId(newBowler.id);
+    } else {
+      setSelectedBowlerId(newBowler.id);
+    }
+
     setNewBowlerName('');
     setNewBowlerTeam('');
     setNewBowlerJersey('');
@@ -533,12 +569,14 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
 
             {legalBalls.length >= 6 && (
               <button
+                id="btn-hud-end-over"
                 type="button"
-                onClick={() => handleSaveCompletedOver(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/40 animate-pulse ml-2"
+                onClick={handleOpenEndOverModal}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/40 animate-pulse ml-2 cursor-pointer transition-all"
+                title="End over and change bowler"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Save Over</span>
+                <span>End Over & Change Bowler</span>
               </button>
             )}
           </div>
@@ -799,101 +837,229 @@ export const LivePitchTracker: React.FC<LivePitchTrackerProps> = ({
               </div>
             </div>
 
-            {/* BIG ACTION: RECORD BALL (Bento Pill / Button) */}
-            <div className="pt-2">
-              <button
-                id="record-and-log-ball-btn"
-                type="button"
-                onClick={handleLogBall}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white rounded-2xl text-sm font-bold shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Plus className="w-5 h-5" />
-                <span>
-                  Record Ball #{currentBalls.length + 1} ({bowlingSide === 'around_the_wicket' ? 'Around Wkt' : 'Over Wkt'} • {LENGTH_ZONES_CONFIG[selectedPitchCoords.lengthZone].shortName})
-                </span>
-              </button>
+            {/* BIG ACTION: RECORD BALL & END OVER POP OPTION BUTTON */}
+            <div className="pt-2 space-y-2">
+              {currentBalls.length >= 6 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    id="btn-card-end-over"
+                    type="button"
+                    onClick={handleOpenEndOverModal}
+                    className="py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white rounded-2xl text-sm font-bold shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer border border-emerald-400/30"
+                  >
+                    <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+                    <span>End Over & Change Bowler</span>
+                  </button>
+
+                  <button
+                    id="record-and-log-ball-btn"
+                    type="button"
+                    onClick={handleLogBall}
+                    className="py-3.5 bg-slate-800 hover:bg-slate-700 active:scale-[0.99] text-slate-200 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-slate-700"
+                    title="Log ball 7+ in case of extra balls or extended overs"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Extra Ball #{currentBalls.length + 1}</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  id="record-and-log-ball-btn"
+                  type="button"
+                  onClick={handleLogBall}
+                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white rounded-2xl text-sm font-bold shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-5 h-5" />
+                  <span>
+                    Record Ball #{currentBalls.length + 1} ({bowlingSide === 'around_the_wicket' ? 'Around Wkt' : 'Over Wkt'} • {LENGTH_ZONES_CONFIG[selectedPitchCoords.lengthZone].shortName})
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Over Complete Modal (Bento Style) */}
+      {/* Over Complete & Change Bowler Pop Modal */}
       {overCompleteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 rounded-3xl max-w-md w-full p-6 border border-slate-800 shadow-2xl space-y-5 animate-scaleUp">
-            <div className="text-center space-y-1">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 mx-auto flex items-center justify-center">
-                <CheckCircle2 className="w-7 h-7" />
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-slate-900 rounded-3xl max-w-lg w-full p-6 border border-slate-700/80 shadow-2xl space-y-5 animate-scaleUp relative">
+            {/* Top Close Dismiss Button */}
+            <button
+              type="button"
+              onClick={() => setOverCompleteModalOpen(false)}
+              className="absolute top-5 right-5 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Close and review pitch"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header Badge & Title */}
+            <div className="space-y-1 pr-6">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider bg-emerald-950/80 text-emerald-400 border border-emerald-800/60">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Over #{overNumber} Complete • {currentBalls.length} Deliveries Bowled</span>
               </div>
-              <h3 className="text-lg font-bold text-white tracking-tight">
-                Over #{overNumber} Complete!
+              <h3 className="text-xl font-bold text-white tracking-tight flex items-center gap-2 pt-1">
+                <span>End Over & Change Bowler</span>
               </h3>
               <p className="text-xs text-slate-400">
-                Bowled by {activeBowler?.name} ({matchName})
+                Over #{overNumber} bowled by <strong className="text-white font-semibold">{activeBowler?.name}</strong> ({activeBowler?.bowlingStyle}) • {matchName}
               </p>
             </div>
 
-            {/* Over Pitching Length & Bowling Angle Summary Bento Grid */}
-            <div className="bg-slate-950 rounded-2xl p-4 grid grid-cols-4 gap-2 text-center border border-slate-800">
-              <div>
-                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Balls</div>
-                <div className="text-xl font-mono font-bold text-white">{currentBalls.length}</div>
+            {/* Deliveries Strip Breakdown */}
+            <div className="bg-slate-950/80 rounded-2xl p-3 border border-slate-800/80 space-y-2">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold flex items-center justify-between">
+                <span>Over Deliveries</span>
+                <span className="text-indigo-400">{currentBalls.length} Balls</span>
               </div>
+              <div className="grid grid-cols-6 gap-1.5">
+                {currentBalls.slice(0, 6).map((ball, i) => {
+                  const zoneCfg = LENGTH_ZONES_CONFIG[ball.lengthZone];
+                  return (
+                    <div
+                      key={ball.id || i}
+                      className="p-1.5 rounded-xl border border-slate-800 bg-slate-900/90 text-center space-y-0.5"
+                    >
+                      <div className="text-[10px] font-mono text-slate-400 font-bold">#{ball.ballNumberInOver}</div>
+                      <div
+                        className="text-[11px] font-bold truncate px-1 rounded"
+                        style={{ color: zoneCfg.color }}
+                      >
+                        {zoneCfg.shortName}
+                      </div>
+                      <div className="text-[9px] font-mono text-slate-400">
+                        {ball.bowlingSide === 'around_the_wicket' ? 'ATW' : 'OTW'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Mini Summary Stats Bento */}
+            <div className="bg-slate-950/50 rounded-2xl p-3 grid grid-cols-3 gap-2 text-center border border-slate-800/60">
               <div>
-                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Good Lgth</div>
-                <div className="text-xl font-mono font-bold text-emerald-400">
+                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Good Length</div>
+                <div className="text-lg font-mono font-bold text-emerald-400">
                   {currentBalls.filter((b) => b.lengthZone === 'good_length').length}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Full/York</div>
-                <div className="text-xl font-mono font-bold text-indigo-400">
+                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Full / Yorker</div>
+                <div className="text-lg font-mono font-bold text-indigo-400">
                   {currentBalls.filter((b) => b.lengthZone === 'yorker' || b.lengthZone === 'over_pitch' || b.lengthZone === 'full_length').length}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Angle</div>
+                <div className="text-[10px] text-slate-500 font-mono uppercase font-bold">Release Angle</div>
                 <div className="text-xs font-mono font-bold text-amber-400 mt-1">
-                  {currentBalls.filter((b) => b.bowlingSide === 'around_the_wicket').length} ATW / {currentBalls.filter((b) => b.bowlingSide !== 'around_the_wicket').length} OTW
+                  {currentBalls.filter((b) => b.bowlingSide === 'around_the_wicket').length} ATW • {currentBalls.filter((b) => b.bowlingSide !== 'around_the_wicket').length} OTW
                 </div>
               </div>
             </div>
 
-            {/* Next Bowler Option */}
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                Next Over Bowler
-              </label>
-              <select
-                value={selectedBowlerId}
-                onChange={(e) => setSelectedBowlerId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm font-semibold text-white"
-              >
-                {bowlers.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name} ({b.bowlingStyle})
-                  </option>
-                ))}
-              </select>
+            {/* Change Bowler Selector Section */}
+            <div className="space-y-2.5 pt-1 border-t border-slate-800">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
+                  <ArrowRightLeft className="w-4 h-4 text-indigo-400" />
+                  <span>Next Bowler for Over #{overNumber + 1}</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowAddBowlerModal(true)}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>+ Add Bowler</span>
+                </button>
+              </div>
+
+              {/* Bowler Selection Options */}
+              <div className="space-y-2">
+                <select
+                  id="select-next-over-bowler"
+                  value={nextBowlerId}
+                  onChange={(e) => setNextBowlerId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white focus:border-indigo-500 cursor-pointer"
+                >
+                  {bowlers.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.bowlingStyle}) {b.id === activeBowler?.id ? '— [Current Bowler]' : '— [Change to this bowler]'}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Bowler Quick Pills Selection */}
+                <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
+                  {bowlers.map((b) => {
+                    const isSelected = nextBowlerId === b.id;
+                    const isCurrent = b.id === activeBowler?.id;
+
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => setNextBowlerId(b.id)}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-indigo-950/70 border-indigo-500 text-white shadow-md'
+                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-bold truncate text-white">{b.name}</span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+                          <span className="truncate">{b.bowlingStyle}</span>
+                          {isCurrent && (
+                            <span className="text-[9px] px-1 rounded bg-slate-800 text-amber-300 font-mono shrink-0">
+                              Just Bowled
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex flex-col gap-2 pt-2">
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-2">
               <button
+                id="btn-confirm-end-over-and-change"
                 type="button"
                 onClick={() => handleSaveCompletedOver(true)}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-600/30 transition-colors"
+                className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 active:scale-[0.99] text-white rounded-2xl text-sm font-bold shadow-xl shadow-indigo-900/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                Save to Database & Start Next Over
+                <ArrowRightLeft className="w-4 h-4" />
+                <span>
+                  End Over & Start Over #{overNumber + 1} with {bowlers.find((b) => b.id === nextBowlerId)?.name || 'Next Bowler'}
+                </span>
               </button>
-              <button
-                type="button"
-                onClick={handleExportCurrentOverPDF}
-                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
-              >
-                <FileDown className="w-3.5 h-3.5 text-rose-400" />
-                <span>Export Over PDF</span>
-              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportCurrentOverPDF}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <FileDown className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Export Over PDF</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setOverCompleteModalOpen(false)}
+                  className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Review Pitch Deliveries
+                </button>
+              </div>
             </div>
           </div>
         </div>
